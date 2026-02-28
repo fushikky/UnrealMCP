@@ -1,14 +1,20 @@
 @echo off
-setlocal EnableDelayedExpansion
+REM Run in a window that stays open so you can see output even if the script exits early
+if not defined UNREAL_MCP_KEEPOPEN (
+    cmd /k "set UNREAL_MCP_KEEPOPEN=1 & cd /d "%~dp0" & "%~f0" %*"
+    exit /b
+)
+
+setlocal
 
 echo ========================================================
 echo Unreal MCP - Python Environment Setup
 echo ========================================================
 echo.
-
-REM Get the directory where this script is located
+REM Get the directory where this script is located and switch to it
 set "SCRIPT_DIR=%~dp0"
 set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+cd /d "%SCRIPT_DIR%"
 
 REM Set paths for local environment
 set "ENV_DIR=%SCRIPT_DIR%\python_env"
@@ -22,6 +28,8 @@ where python >nul 2>&1
 if %ERRORLEVEL% neq 0 (
     echo ERROR: Python is not installed or not in your PATH.
     echo Please install Python and try again.
+    echo.
+    pause
     goto :end
 )
 
@@ -42,44 +50,37 @@ if not exist "%MODULES_DIR%" (
     mkdir "%MODULES_DIR%"
 )
 
-REM Check if virtualenv is installed
-python -c "import virtualenv" >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo Installing virtualenv...
-    python -m pip install virtualenv
-)
-
-REM Create virtual environment if it doesn’t exist
+REM Create virtual environment if it doesn't exist
+echo.
 if not exist "%ENV_DIR%\Scripts\python.exe" (
+    echo Installing virtualenv if needed...
+    python -m pip install virtualenv
     echo Creating virtual environment...
     python -m virtualenv "%ENV_DIR%"
 ) else (
     echo Virtual environment already exists.
 )
 
-REM Activate the virtual environment and install packages
-echo.
-echo Activating virtual environment and installing packages...
-call "%ENV_DIR%\Scripts\activate.bat"
-
-REM Check if activation was successful
-if %ERRORLEVEL% neq 0 (
-    echo ERROR: Failed to activate virtual environment.
+REM Use venv python directly (avoid call activate.bat which can exit the script on some systems)
+set "VENV_PYTHON=%ENV_DIR%\Scripts\python.exe"
+if not exist "%VENV_PYTHON%" (
+    echo ERROR: Venv Python not found. Please run setup again.
+    pause
     goto :end
 )
 
 REM Install MCP package in the virtual environment
 echo Installing MCP package...
-python -m pip install mcp>=0.1.0
+"%VENV_PYTHON%" -m pip install mcp>=0.1.0
 
 REM Also install to modules directory as a backup
 echo Installing MCP package to modules directory as backup...
-python -m pip install mcp>=0.1.0 -t "%MODULES_DIR%"
+"%VENV_PYTHON%" -m pip install mcp>=0.1.0 -t "%MODULES_DIR%"
 
 REM Verify installation
 echo.
 echo Verifying MCP installation...
-python -c "import mcp; print(f'MCP package installed successfully. Version: {getattr(mcp, \"__version__\", \"unknown\")}')"
+"%VENV_PYTHON%" -c "import mcp; print(f'MCP package installed successfully. Version: {getattr(mcp, \"__version__\", \"unknown\")}')"
 
 REM Set configuration file path
 set "CLAUDE_CONFIG_DIR=%APPDATA%\Claude"
@@ -127,9 +128,11 @@ echo :end
 REM Update Claude Desktop configuration using Python
 echo.
 echo Updating Claude Desktop configuration...
-python temp_update_config.py "%CLAUDE_CONFIG_FILE%" "%SCRIPT_DIR%\run_unreal_mcp.bat"
+"%VENV_PYTHON%" "%SCRIPT_DIR%\temp_update_config.py" "%CLAUDE_CONFIG_FILE%" "%SCRIPT_DIR%\run_unreal_mcp.bat"
 if %ERRORLEVEL% neq 0 (
     echo ERROR: Failed to update Claude Desktop configuration.
+    echo.
+    pause
     goto :end
 )
 echo Claude Desktop configuration updated at: %CLAUDE_CONFIG_FILE%
@@ -143,7 +146,11 @@ echo 1. Run run_unreal_mcp.bat to start the MCP bridge
 echo 2. Open Claude Desktop and it should automatically use the correct configuration
 echo ========================================================
 echo.
-echo Please Press any key to exit...
+echo Please press any key to exit...
 pause >nul
+exit /b
 
 :end
+echo.
+echo Press any key to close this window...
+pause >nul
