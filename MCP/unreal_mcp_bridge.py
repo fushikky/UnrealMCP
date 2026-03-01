@@ -82,11 +82,8 @@ except ImportError as e:
     print("Please try reinstalling the package using: pip install --upgrade mcp", file=sys.stderr)
     sys.exit(1)
 
-# Initialize the MCP server
-mcp = FastMCP(
-    "UnrealMCP",
-    description="Unreal Engine integration through the Model Context Protocol"
-)
+# Initialize the MCP server (description= not supported in all mcp versions)
+mcp = FastMCP("UnrealMCP")
 
 def send_command(command_type, params=None, timeout=DEFAULT_TIMEOUT):
     """Send a command to the C++ MCP server and return the response.
